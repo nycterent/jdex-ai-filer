@@ -1,0 +1,10 @@
+{
+	"id": "jdex-ai-filer",
+	"name": "JDex AI Filer",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "AI-powered filing assistant for Johnny.Decimal systems. Select text, get AI suggestions for where to file it, confirm and append.",
+	"author": "saint",
+	"authorUrl": "https://github.com/saint",
+	"isDesktopOnly": false
+}
