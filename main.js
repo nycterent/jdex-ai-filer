@@ -788,7 +788,9 @@ var SuggestionModal = class extends import_obsidian7.Modal {
       const suggestionsContainer = contentEl.createDiv("jdex-suggestions");
       this.suggestions.forEach((suggestion, index) => {
         const suggestionEl = suggestionsContainer.createDiv("jdex-suggestion");
-        suggestionEl.addClass(index === 0 ? "jdex-suggestion-selected" : "");
+        if (index === 0) {
+          suggestionEl.addClass("jdex-suggestion-selected");
+        }
         const radioId = `suggestion-${index}`;
         const radio = suggestionEl.createEl("input", {
           type: "radio",
