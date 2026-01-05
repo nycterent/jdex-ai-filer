@@ -72,6 +72,9 @@ export interface JDexAIFilerSettings {
 	openrouterApiKey: string;
 	openrouterModel: string;
 
+	// JDex Configuration
+	jdexRootFolder: string; // Subfolder containing JDex structure, empty = vault root
+
 	// Filing Behavior
 	addTimestamp: boolean;
 	timestampFormat: string;
@@ -98,6 +101,7 @@ export const DEFAULT_SETTINGS: JDexAIFilerSettings = {
 	ollamaModel: 'llama3.2',
 	openrouterApiKey: '',
 	openrouterModel: 'anthropic/claude-3.5-sonnet',
+	jdexRootFolder: '',
 	addTimestamp: true,
 	timestampFormat: 'YYYY-MM-DD HH:mm',
 	defaultHeader: '',

@@ -156,3 +156,83 @@
 		transform: rotate(360deg);
 	}
 }
+
+/* Input Modal Styles */
+.jdex-input-modal {
+	padding: 1rem;
+}
+
+.jdex-input-modal h2 {
+	margin-top: 0;
+	margin-bottom: 1rem;
+}
+
+.jdex-input-modal h4 {
+	margin-top: 1rem;
+	margin-bottom: 0.5rem;
+	font-size: 0.9rem;
+	color: var(--text-muted);
+}
+
+.jdex-textarea-container {
+	margin-bottom: 1rem;
+}
+
+.jdex-input-textarea {
+	width: 100%;
+	min-height: 120px;
+	resize: vertical;
+	padding: 0.75rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	font-size: 0.9rem;
+}
+
+.jdex-input-textarea:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+.jdex-input-textarea::placeholder {
+	color: var(--text-muted);
+}
+
+.jdex-radio-option {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.25rem 0;
+}
+
+.jdex-radio-option input[type="radio"] {
+	margin: 0;
+}
+
+.jdex-radio-option label {
+	cursor: pointer;
+}
+
+.jdex-dropdown-container {
+	display: inline-block;
+	margin-left: 0.25rem;
+}
+
+.jdex-dropdown-container .setting-item {
+	border: none;
+	padding: 0;
+}
+
+.jdex-dropdown-container .setting-item-info {
+	display: none;
+}
+
+.jdex-dropdown-container .setting-item-control {
+	padding: 0;
+}
+
+.jdex-dropdown-container select {
+	min-width: 200px;
+}

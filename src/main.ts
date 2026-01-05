@@ -6,12 +6,13 @@ import { buildCompactIndex } from './jdex/indexBuilder';
 import { createProvider } from './providers/providerFactory';
 import { buildSystemPrompt, buildUserPrompt } from './prompts/systemPrompt';
 import { SuggestionModal } from './modals/suggestionModal';
+import { InputModal } from './modals/inputModal';
 import { FilingService } from './services/filingService';
 
 export default class JDexAIFilerPlugin extends Plugin {
 	settings: JDexAIFilerSettings;
 	ribbonIconEl: HTMLElement | null = null;
-	private jdexParser: JDexParser;
+	jdexParser: JDexParser;
 	private filingService: FilingService;
 
 	async onload() {
@@ -54,10 +55,10 @@ export default class JDexAIFilerPlugin extends Plugin {
 			}
 		});
 
-		// Add command: Open filer modal
+		// Add command: Open filer modal (quick - requires selection)
 		this.addCommand({
 			id: 'open-filer',
-			name: 'Open AI Filer',
+			name: 'File selected text (quick)',
 			callback: () => {
 				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 				if (view) {
@@ -66,11 +67,20 @@ export default class JDexAIFilerPlugin extends Plugin {
 					if (selectedText) {
 						this.fileContent(selectedText);
 					} else {
-						new Notice('Select text to file or use "File current note"');
+						new Notice('Select text to file or use "Open Filer Dialog"');
 					}
 				} else {
 					new Notice('Open a note first');
 				}
+			}
+		});
+
+		// Add command: Open input dialog
+		this.addCommand({
+			id: 'open-filer-dialog',
+			name: 'Open Filer Dialog',
+			callback: () => {
+				new InputModal(this.app, this).open();
 			}
 		});
 
@@ -139,12 +149,14 @@ export default class JDexAIFilerPlugin extends Plugin {
 		try {
 			// 1. Build JDex index from vault
 			const index = await this.jdexParser.getIndex(
+				this.settings.jdexRootFolder,
 				this.settings.cacheJdexIndex,
 				this.settings.cacheTimeout
 			);
 
 			if (index.areas.length === 0) {
-				new Notice('No JDex structure found in vault. Create folders like "10-19 Area name"');
+				const location = this.settings.jdexRootFolder || 'vault root';
+				new Notice(`No JDex structure found in ${location}. Create folders like "10-19 Area name"`);
 				return;
 			}
 
@@ -170,7 +182,7 @@ export default class JDexAIFilerPlugin extends Plugin {
 
 			// 4. Populate target paths from index
 			for (const suggestion of response.suggestions) {
-				const item = await this.jdexParser.findById(suggestion.jdexId);
+				const item = await this.jdexParser.findById(suggestion.jdexId, this.settings.jdexRootFolder);
 				if (item) {
 					suggestion.targetPath = item.path;
 					suggestion.jdexName = item.name;
@@ -214,6 +226,28 @@ export default class JDexAIFilerPlugin extends Plugin {
 		options: FileOptions
 	) {
 		try {
+			await this.filingService.fileContent(content, suggestion as any, options);
+			new Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+		} catch (error) {
+			console.error('Filing error:', error);
+			new Notice('Failed to file content: ' + (error as Error).message);
+		}
+	}
+
+	/**
+	 * File content directly to a manually selected destination
+	 */
+	async fileToDestination(
+		content: string,
+		destination: { id: string; label: string; path: string },
+		options: FileOptions
+	) {
+		try {
+			const suggestion = {
+				jdexId: destination.id,
+				jdexName: destination.label.replace(`${destination.id} - `, ''),
+				targetPath: destination.path
+			};
 			await this.filingService.fileContent(content, suggestion as any, options);
 			new Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
 		} catch (error) {

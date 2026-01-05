@@ -10,6 +10,7 @@ export class JDexParser {
 	private app: App;
 	private cache: JDexIndex | null = null;
 	private cacheTimestamp: number = 0;
+	private cachedRootFolder: string = '';
 
 	constructor(app: App) {
 		this.app = app;
@@ -18,17 +19,23 @@ export class JDexParser {
 	/**
 	 * Get the JDex index, using cache if valid
 	 */
-	async getIndex(useCache: boolean = true, cacheTimeout: number = 30): Promise<JDexIndex> {
+	async getIndex(rootFolder: string = '', useCache: boolean = true, cacheTimeout: number = 30): Promise<JDexIndex> {
 		const now = Date.now();
 		const cacheAgeMinutes = (now - this.cacheTimestamp) / 1000 / 60;
+
+		// Invalidate cache if root folder changed
+		if (this.cachedRootFolder !== rootFolder) {
+			this.clearCache();
+		}
 
 		if (useCache && this.cache && cacheAgeMinutes < cacheTimeout) {
 			return this.cache;
 		}
 
-		const index = await this.scanVault();
+		const index = await this.scanVault(rootFolder);
 		this.cache = index;
 		this.cacheTimestamp = now;
+		this.cachedRootFolder = rootFolder;
 
 		return index;
 	}
@@ -42,27 +49,31 @@ export class JDexParser {
 	}
 
 	/**
-	 * Scan the entire vault for JDex structure
+	 * Scan the vault for JDex structure starting from specified folder
 	 */
-	async scanVault(): Promise<JDexIndex> {
+	async scanVault(rootFolderPath: string = ''): Promise<JDexIndex> {
 		const areas: JDexArea[] = [];
-		const rootFolder = this.app.vault.getRoot();
+
+		// Get the starting folder
+		let startFolder: TFolder;
+		if (rootFolderPath) {
+			const folder = this.app.vault.getAbstractFileByPath(rootFolderPath);
+			if (folder instanceof TFolder) {
+				startFolder = folder;
+			} else {
+				// Folder not found, fall back to vault root
+				startFolder = this.app.vault.getRoot();
+			}
+		} else {
+			startFolder = this.app.vault.getRoot();
+		}
 
 		// Find all JDex areas (folders matching XX-XX pattern)
-		for (const child of rootFolder.children) {
+		for (const child of startFolder.children) {
 			if (child instanceof TFolder) {
 				const area = await this.parseAreaFolder(child);
 				if (area) {
 					areas.push(area);
-				}
-				// Also check one level deep for nested vaults
-				for (const subChild of child.children) {
-					if (subChild instanceof TFolder) {
-						const nestedArea = await this.parseAreaFolder(subChild);
-						if (nestedArea) {
-							areas.push(nestedArea);
-						}
-					}
 				}
 			}
 		}
@@ -185,8 +196,8 @@ export class JDexParser {
 	/**
 	 * Find a specific JDex item by ID
 	 */
-	async findById(jdexId: string): Promise<JDexItem | null> {
-		const index = await this.getIndex();
+	async findById(jdexId: string, rootFolder: string = ''): Promise<JDexItem | null> {
+		const index = await this.getIndex(rootFolder);
 
 		for (const area of index.areas) {
 			for (const category of area.categories) {
@@ -202,10 +213,10 @@ export class JDexParser {
 	}
 
 	/**
-	 * Get all fileable items (non-header, non-reserved)
+	 * Get all fileable items (non-header, non-reserved) for dropdown
 	 */
-	async getFileableItems(): Promise<JDexItem[]> {
-		const index = await this.getIndex();
+	async getFileableItems(rootFolder: string = ''): Promise<JDexItem[]> {
+		const index = await this.getIndex(rootFolder);
 		const items: JDexItem[] = [];
 
 		for (const area of index.areas) {
@@ -219,5 +230,17 @@ export class JDexParser {
 		}
 
 		return items;
+	}
+
+	/**
+	 * Get items formatted for dropdown: "14.11 - My computers & servers"
+	 */
+	async getItemsForDropdown(rootFolder: string = ''): Promise<{ id: string; label: string; path: string }[]> {
+		const items = await this.getFileableItems(rootFolder);
+		return items.map(item => ({
+			id: item.id,
+			label: `${item.id} - ${item.name}`,
+			path: item.path
+		}));
 	}
 }

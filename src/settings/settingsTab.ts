@@ -42,6 +42,20 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 			this.displayOllamaSettings(containerEl);
 		}
 
+		// JDex Configuration
+		containerEl.createEl('h3', { text: 'JDex Location' });
+
+		new Setting(containerEl)
+			.setName('JDex root folder')
+			.setDesc('Folder containing your JDex structure (leave empty for vault root)')
+			.addText(text => text
+				.setPlaceholder('JDex - Life Admin System')
+				.setValue(this.plugin.settings.jdexRootFolder)
+				.onChange(async (value) => {
+					this.plugin.settings.jdexRootFolder = value;
+					await this.plugin.saveSettings();
+				}));
+
 		// Filing behavior section
 		containerEl.createEl('h3', { text: 'Filing Behavior' });
 
