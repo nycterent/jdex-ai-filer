@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => JDexAIFilerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -53,8 +53,38 @@ var DEFAULT_SETTINGS = {
 };
 
 // src/settings/settingsTab.ts
+var import_obsidian2 = require("obsidian");
+
+// src/modals/folderSuggestModal.ts
 var import_obsidian = require("obsidian");
-var JDexAIFilerSettingTab = class extends import_obsidian.PluginSettingTab {
+var FolderSuggestModal = class extends import_obsidian.FuzzySuggestModal {
+  constructor(app, onChoose) {
+    super(app);
+    this.onChoose = onChoose;
+    this.setPlaceholder("Type to search folders...");
+  }
+  getItems() {
+    return this.getAllFolders(this.app.vault.getRoot());
+  }
+  getItemText(folder) {
+    return folder.path || "(Vault root)";
+  }
+  onChooseItem(folder) {
+    this.onChoose(folder);
+  }
+  getAllFolders(folder) {
+    let folders = [folder];
+    for (const child of folder.children) {
+      if (child instanceof import_obsidian.TFolder) {
+        folders = folders.concat(this.getAllFolders(child));
+      }
+    }
+    return folders;
+  }
+};
+
+// src/settings/settingsTab.ts
+var JDexAIFilerSettingTab = class extends import_obsidian2.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -63,7 +93,7 @@ var JDexAIFilerSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "JDex AI Filer Settings" });
-    new import_obsidian.Setting(containerEl).setName("LLM Provider").setDesc("Select your AI provider for filing suggestions").addDropdown((dropdown) => dropdown.addOption("openrouter", "OpenRouter (Multi-Model)").addOption("openai", "OpenAI").addOption("anthropic", "Anthropic Claude").addOption("ollama", "Ollama (Local)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("LLM Provider").setDesc("Select your AI provider for filing suggestions").addDropdown((dropdown) => dropdown.addOption("openrouter", "OpenRouter (Multi-Model)").addOption("openai", "OpenAI").addOption("anthropic", "Anthropic Claude").addOption("ollama", "Ollama (Local)").setValue(this.plugin.settings.provider).onChange(async (value) => {
       this.plugin.settings.provider = value;
       await this.plugin.saveSettings();
       this.display();
@@ -78,98 +108,104 @@ var JDexAIFilerSettingTab = class extends import_obsidian.PluginSettingTab {
       this.displayOllamaSettings(containerEl);
     }
     containerEl.createEl("h3", { text: "JDex Location" });
-    new import_obsidian.Setting(containerEl).setName("JDex root folder").setDesc("Folder containing your JDex structure (leave empty for vault root)").addText((text) => text.setPlaceholder("JDex - Life Admin System").setValue(this.plugin.settings.jdexRootFolder).onChange(async (value) => {
-      this.plugin.settings.jdexRootFolder = value;
-      await this.plugin.saveSettings();
+    new import_obsidian2.Setting(containerEl).setName("JDex root folder").setDesc("Folder containing your JDex structure").addText((text) => {
+      text.setValue(this.plugin.settings.jdexRootFolder || "(Vault root)").setDisabled(true);
+      text.inputEl.style.width = "200px";
+    }).addButton((button) => button.setButtonText("Browse").onClick(() => {
+      new FolderSuggestModal(this.app, (folder) => {
+        this.plugin.settings.jdexRootFolder = folder.isRoot() ? "" : folder.path;
+        this.plugin.saveSettings();
+        this.display();
+      }).open();
     }));
     containerEl.createEl("h3", { text: "Filing Behavior" });
-    new import_obsidian.Setting(containerEl).setName("Add timestamp").setDesc("Add filing timestamp to appended content").addToggle((toggle) => toggle.setValue(this.plugin.settings.addTimestamp).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Add timestamp").setDesc("Add filing timestamp to appended content").addToggle((toggle) => toggle.setValue(this.plugin.settings.addTimestamp).onChange(async (value) => {
       this.plugin.settings.addTimestamp = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Timestamp format").setDesc("Format for timestamps (moment.js format)").addText((text) => text.setPlaceholder("YYYY-MM-DD HH:mm").setValue(this.plugin.settings.timestampFormat).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Timestamp format").setDesc("Format for timestamps (moment.js format)").addText((text) => text.setPlaceholder("YYYY-MM-DD HH:mm").setValue(this.plugin.settings.timestampFormat).onChange(async (value) => {
       this.plugin.settings.timestampFormat = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Default header").setDesc("Append content under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.plugin.settings.defaultHeader).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Default header").setDesc("Append content under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.plugin.settings.defaultHeader).onChange(async (value) => {
       this.plugin.settings.defaultHeader = value;
       await this.plugin.saveSettings();
     }));
     containerEl.createEl("h3", { text: "UI Preferences" });
-    new import_obsidian.Setting(containerEl).setName("Show ribbon icon").setDesc("Show JDex AI Filer icon in the left ribbon").addToggle((toggle) => toggle.setValue(this.plugin.settings.showInRibbon).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Show ribbon icon").setDesc("Show JDex AI Filer icon in the left ribbon").addToggle((toggle) => toggle.setValue(this.plugin.settings.showInRibbon).onChange(async (value) => {
       this.plugin.settings.showInRibbon = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Max suggestions").setDesc("Maximum number of filing suggestions to show (1-5)").addSlider((slider) => slider.setLimits(1, 5, 1).setValue(this.plugin.settings.maxSuggestions).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Max suggestions").setDesc("Maximum number of filing suggestions to show (1-5)").addSlider((slider) => slider.setLimits(1, 5, 1).setValue(this.plugin.settings.maxSuggestions).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.maxSuggestions = value;
       await this.plugin.saveSettings();
     }));
     containerEl.createEl("h3", { text: "Advanced" });
-    new import_obsidian.Setting(containerEl).setName("Cache JDex index").setDesc("Cache the vault structure to speed up suggestions").addToggle((toggle) => toggle.setValue(this.plugin.settings.cacheJdexIndex).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Cache JDex index").setDesc("Cache the vault structure to speed up suggestions").addToggle((toggle) => toggle.setValue(this.plugin.settings.cacheJdexIndex).onChange(async (value) => {
       this.plugin.settings.cacheJdexIndex = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Cache timeout (minutes)").setDesc("How long to cache the JDex index").addText((text) => text.setPlaceholder("30").setValue(String(this.plugin.settings.cacheTimeout)).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Cache timeout (minutes)").setDesc("How long to cache the JDex index").addText((text) => text.setPlaceholder("30").setValue(String(this.plugin.settings.cacheTimeout)).onChange(async (value) => {
       const num = parseInt(value);
       if (!isNaN(num) && num > 0) {
         this.plugin.settings.cacheTimeout = num;
         await this.plugin.saveSettings();
       }
     }));
-    new import_obsidian.Setting(containerEl).setName("Temperature").setDesc("LLM temperature (0 = deterministic, 1 = creative)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Temperature").setDesc("LLM temperature (0 = deterministic, 1 = creative)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
   }
   displayOpenAISettings(containerEl) {
     containerEl.createEl("h3", { text: "OpenAI Settings" });
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Your OpenAI API key").addText((text) => {
+    new import_obsidian2.Setting(containerEl).setName("API Key").setDesc("Your OpenAI API key").addText((text) => {
       text.setPlaceholder("sk-...").setValue(this.plugin.settings.openaiApiKey).onChange(async (value) => {
         this.plugin.settings.openaiApiKey = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian.Setting(containerEl).setName("Model").setDesc("OpenAI model to use").addDropdown((dropdown) => dropdown.addOption("gpt-4o-mini", "GPT-4o Mini (Fast, Cheap)").addOption("gpt-4o", "GPT-4o (Best)").addOption("gpt-4-turbo", "GPT-4 Turbo").addOption("gpt-3.5-turbo", "GPT-3.5 Turbo (Legacy)").setValue(this.plugin.settings.openaiModel).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Model").setDesc("OpenAI model to use").addDropdown((dropdown) => dropdown.addOption("gpt-4o-mini", "GPT-4o Mini (Fast, Cheap)").addOption("gpt-4o", "GPT-4o (Best)").addOption("gpt-4-turbo", "GPT-4 Turbo").addOption("gpt-3.5-turbo", "GPT-3.5 Turbo (Legacy)").setValue(this.plugin.settings.openaiModel).onChange(async (value) => {
       this.plugin.settings.openaiModel = value;
       await this.plugin.saveSettings();
     }));
   }
   displayAnthropicSettings(containerEl) {
     containerEl.createEl("h3", { text: "Anthropic Settings" });
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Your Anthropic API key").addText((text) => {
+    new import_obsidian2.Setting(containerEl).setName("API Key").setDesc("Your Anthropic API key").addText((text) => {
       text.setPlaceholder("sk-ant-...").setValue(this.plugin.settings.anthropicApiKey).onChange(async (value) => {
         this.plugin.settings.anthropicApiKey = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian.Setting(containerEl).setName("Model").setDesc("Anthropic model to use").addDropdown((dropdown) => dropdown.addOption("claude-sonnet-4-20250514", "Claude Sonnet 4 (Recommended)").addOption("claude-3-5-haiku-20241022", "Claude 3.5 Haiku (Fast)").addOption("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet").setValue(this.plugin.settings.anthropicModel).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Model").setDesc("Anthropic model to use").addDropdown((dropdown) => dropdown.addOption("claude-sonnet-4-20250514", "Claude Sonnet 4 (Recommended)").addOption("claude-3-5-haiku-20241022", "Claude 3.5 Haiku (Fast)").addOption("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet").setValue(this.plugin.settings.anthropicModel).onChange(async (value) => {
       this.plugin.settings.anthropicModel = value;
       await this.plugin.saveSettings();
     }));
   }
   displayOpenRouterSettings(containerEl) {
     containerEl.createEl("h3", { text: "OpenRouter Settings" });
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Your OpenRouter API key").addText((text) => {
+    new import_obsidian2.Setting(containerEl).setName("API Key").setDesc("Your OpenRouter API key").addText((text) => {
       text.setPlaceholder("sk-or-...").setValue(this.plugin.settings.openrouterApiKey).onChange(async (value) => {
         this.plugin.settings.openrouterApiKey = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian.Setting(containerEl).setName("Model").setDesc("OpenRouter model ID (e.g., anthropic/claude-3.5-sonnet)").addText((text) => text.setPlaceholder("anthropic/claude-3.5-sonnet").setValue(this.plugin.settings.openrouterModel).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Model").setDesc("OpenRouter model ID (e.g., anthropic/claude-3.5-sonnet)").addText((text) => text.setPlaceholder("anthropic/claude-3.5-sonnet").setValue(this.plugin.settings.openrouterModel).onChange(async (value) => {
       this.plugin.settings.openrouterModel = value;
       await this.plugin.saveSettings();
     }));
   }
   displayOllamaSettings(containerEl) {
     containerEl.createEl("h3", { text: "Ollama Settings" });
-    new import_obsidian.Setting(containerEl).setName("Endpoint").setDesc("Ollama server URL").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaEndpoint).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Endpoint").setDesc("Ollama server URL").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaEndpoint).onChange(async (value) => {
       this.plugin.settings.ollamaEndpoint = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Model").setDesc("Ollama model name").addText((text) => text.setPlaceholder("llama3.2").setValue(this.plugin.settings.ollamaModel).onChange(async (value) => {
+    new import_obsidian2.Setting(containerEl).setName("Model").setDesc("Ollama model name").addText((text) => text.setPlaceholder("llama3.2").setValue(this.plugin.settings.ollamaModel).onChange(async (value) => {
       this.plugin.settings.ollamaModel = value;
       await this.plugin.saveSettings();
     }));
@@ -177,7 +213,7 @@ var JDexAIFilerSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/jdex/parser.ts
-var import_obsidian2 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 var AREA_PATTERN = /^(\d{2})-(\d{2})\s+(.+)$/;
 var CATEGORY_PATTERN = /^(\d{2})\s+(.+)$/;
 var ID_PATTERN = /^(\d{2})\.(\d{2})\s+(.+)$/;
@@ -221,7 +257,7 @@ var JDexParser = class {
     let startFolder;
     if (rootFolderPath) {
       const folder = this.app.vault.getAbstractFileByPath(rootFolderPath);
-      if (folder instanceof import_obsidian2.TFolder) {
+      if (folder instanceof import_obsidian3.TFolder) {
         startFolder = folder;
       } else {
         startFolder = this.app.vault.getRoot();
@@ -230,7 +266,7 @@ var JDexParser = class {
       startFolder = this.app.vault.getRoot();
     }
     for (const child of startFolder.children) {
-      if (child instanceof import_obsidian2.TFolder) {
+      if (child instanceof import_obsidian3.TFolder) {
         const area = await this.parseAreaFolder(child);
         if (area) {
           areas.push(area);
@@ -253,7 +289,7 @@ var JDexParser = class {
     const areaName = match[3].trim();
     const categories = [];
     for (const child of folder.children) {
-      if (child instanceof import_obsidian2.TFolder) {
+      if (child instanceof import_obsidian3.TFolder) {
         const category = await this.parseCategoryFolder(child, areaId);
         if (category) {
           categories.push(category);
@@ -284,7 +320,7 @@ var JDexParser = class {
     }
     const items = [];
     for (const child of folder.children) {
-      if (child instanceof import_obsidian2.TFile && child.extension === "md") {
+      if (child instanceof import_obsidian3.TFile && child.extension === "md") {
         const item = this.parseIdFile(child, categoryId);
         if (item) {
           items.push(item);
@@ -390,7 +426,7 @@ function buildCompactIndex(index) {
 }
 
 // src/providers/openaiProvider.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // src/providers/llmProvider.ts
 var LLMProvider = class {
@@ -435,7 +471,7 @@ var OpenAIProvider = class extends LLMProvider {
   }
   async sendRequest(request) {
     var _a, _b;
-    const response = await (0, import_obsidian3.requestUrl)({
+    const response = await (0, import_obsidian4.requestUrl)({
       url: "https://api.openai.com/v1/chat/completions",
       method: "POST",
       headers: {
@@ -473,7 +509,7 @@ var OpenAIProvider = class extends LLMProvider {
   }
   async testConnection() {
     try {
-      const response = await (0, import_obsidian3.requestUrl)({
+      const response = await (0, import_obsidian4.requestUrl)({
         url: "https://api.openai.com/v1/models",
         method: "GET",
         headers: {
@@ -496,7 +532,7 @@ var OpenAIProvider = class extends LLMProvider {
 };
 
 // src/providers/anthropicProvider.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var AnthropicProvider = class extends LLMProvider {
   constructor(apiKey, model) {
     super();
@@ -506,7 +542,7 @@ var AnthropicProvider = class extends LLMProvider {
   }
   async sendRequest(request) {
     var _a;
-    const response = await (0, import_obsidian4.requestUrl)({
+    const response = await (0, import_obsidian5.requestUrl)({
       url: "https://api.anthropic.com/v1/messages",
       method: "POST",
       headers: {
@@ -556,7 +592,7 @@ var AnthropicProvider = class extends LLMProvider {
 };
 
 // src/providers/ollamaProvider.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 var OllamaProvider = class extends LLMProvider {
   constructor(endpoint, model) {
     super();
@@ -565,7 +601,7 @@ var OllamaProvider = class extends LLMProvider {
     this.model = model;
   }
   async sendRequest(request) {
-    const response = await (0, import_obsidian5.requestUrl)({
+    const response = await (0, import_obsidian6.requestUrl)({
       url: `${this.endpoint}/api/generate`,
       method: "POST",
       headers: {
@@ -596,7 +632,7 @@ var OllamaProvider = class extends LLMProvider {
   }
   async testConnection() {
     try {
-      const response = await (0, import_obsidian5.requestUrl)({
+      const response = await (0, import_obsidian6.requestUrl)({
         url: `${this.endpoint}/api/tags`,
         method: "GET"
       });
@@ -625,7 +661,7 @@ ${request.userContent}`;
 };
 
 // src/providers/openrouterProvider.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 var OpenRouterProvider = class extends LLMProvider {
   constructor(apiKey, model) {
     super();
@@ -635,7 +671,7 @@ var OpenRouterProvider = class extends LLMProvider {
   }
   async sendRequest(request) {
     var _a, _b;
-    const response = await (0, import_obsidian6.requestUrl)({
+    const response = await (0, import_obsidian7.requestUrl)({
       url: "https://openrouter.ai/api/v1/chat/completions",
       method: "POST",
       headers: {
@@ -674,7 +710,7 @@ var OpenRouterProvider = class extends LLMProvider {
   }
   async testConnection() {
     try {
-      const response = await (0, import_obsidian6.requestUrl)({
+      const response = await (0, import_obsidian7.requestUrl)({
         url: "https://openrouter.ai/api/v1/models",
         method: "GET",
         headers: {
@@ -780,8 +816,8 @@ Respond with JSON only.`;
 }
 
 // src/modals/suggestionModal.ts
-var import_obsidian7 = require("obsidian");
-var SuggestionModal = class extends import_obsidian7.Modal {
+var import_obsidian8 = require("obsidian");
+var SuggestionModal = class extends import_obsidian8.Modal {
   constructor(app, content, suggestions, defaultOptions, onConfirm) {
     super(app);
     this.selectedSuggestion = null;
@@ -848,10 +884,10 @@ var SuggestionModal = class extends import_obsidian7.Modal {
       });
     }
     contentEl.createEl("h3", { text: "Options" });
-    new import_obsidian7.Setting(contentEl).setName("Add timestamp").addToggle((toggle) => toggle.setValue(this.fileOptions.addTimestamp).onChange((value) => {
+    new import_obsidian8.Setting(contentEl).setName("Add timestamp").addToggle((toggle) => toggle.setValue(this.fileOptions.addTimestamp).onChange((value) => {
       this.fileOptions.addTimestamp = value;
     }));
-    new import_obsidian7.Setting(contentEl).setName("Under header").setDesc("Append under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.fileOptions.header || "").onChange((value) => {
+    new import_obsidian8.Setting(contentEl).setName("Under header").setDesc("Append under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.fileOptions.header || "").onChange((value) => {
       this.fileOptions.header = value;
     }));
     const buttonContainer = contentEl.createDiv("jdex-modal-buttons");
@@ -866,7 +902,7 @@ var SuggestionModal = class extends import_obsidian7.Modal {
         this.onConfirm(this.selectedSuggestion, this.fileOptions);
         this.close();
       } else {
-        new import_obsidian7.Notice("Please select a location");
+        new import_obsidian8.Notice("Please select a location");
       }
     });
     if (this.suggestions.length === 0) {
@@ -884,8 +920,8 @@ var SuggestionModal = class extends import_obsidian7.Modal {
 };
 
 // src/modals/inputModal.ts
-var import_obsidian8 = require("obsidian");
-var InputModal = class extends import_obsidian8.Modal {
+var import_obsidian9 = require("obsidian");
+var InputModal = class extends import_obsidian9.Modal {
   constructor(app, plugin) {
     super(app);
     this.content = "";
@@ -932,7 +968,7 @@ var InputModal = class extends import_obsidian8.Modal {
       attr: { for: "dest-manual" }
     });
     const dropdownContainer = manualOption.createSpan("jdex-dropdown-container");
-    new import_obsidian8.Setting(dropdownContainer).addDropdown((dropdown) => {
+    new import_obsidian9.Setting(dropdownContainer).addDropdown((dropdown) => {
       this.dropdown = dropdown;
       dropdown.addOption("", "-- Select location --");
       for (const item of this.dropdownItems) {
@@ -952,10 +988,10 @@ var InputModal = class extends import_obsidian8.Modal {
       if (this.dropdown) this.dropdown.selectEl.disabled = false;
     });
     contentEl.createEl("h4", { text: "Options" });
-    new import_obsidian8.Setting(contentEl).setName("Add timestamp").addToggle((toggle) => toggle.setValue(this.addTimestamp).onChange((value) => {
+    new import_obsidian9.Setting(contentEl).setName("Add timestamp").addToggle((toggle) => toggle.setValue(this.addTimestamp).onChange((value) => {
       this.addTimestamp = value;
     }));
-    new import_obsidian8.Setting(contentEl).setName("Under header").setDesc("Append under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.header).onChange((value) => {
+    new import_obsidian9.Setting(contentEl).setName("Under header").setDesc("Append under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.header).onChange((value) => {
       this.header = value;
     }));
     const buttonContainer = contentEl.createDiv("jdex-modal-buttons");
@@ -979,7 +1015,7 @@ var InputModal = class extends import_obsidian8.Modal {
   }
   async handleSubmit() {
     if (!this.content.trim()) {
-      new import_obsidian8.Notice("Please enter content to file");
+      new import_obsidian9.Notice("Please enter content to file");
       return;
     }
     const options = {
@@ -989,7 +1025,7 @@ var InputModal = class extends import_obsidian8.Modal {
     };
     if (this.destinationMode === "manual") {
       if (!this.selectedDestination) {
-        new import_obsidian8.Notice("Please select a destination");
+        new import_obsidian9.Notice("Please select a destination");
         return;
       }
       this.close();
@@ -1006,7 +1042,7 @@ var InputModal = class extends import_obsidian8.Modal {
 };
 
 // src/services/filingService.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var FilingService = class {
   constructor(app) {
     this.app = app;
@@ -1016,12 +1052,12 @@ var FilingService = class {
    */
   async fileContent(content, suggestion, options) {
     const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
-    if (!(file instanceof import_obsidian9.TFile)) {
+    if (!(file instanceof import_obsidian10.TFile)) {
       throw new Error(`File not found: ${suggestion.targetPath}`);
     }
     let appendContent = "\n\n";
     if (options.addTimestamp) {
-      const timestamp = (0, import_obsidian9.moment)().format(options.timestampFormat);
+      const timestamp = (0, import_obsidian10.moment)().format(options.timestampFormat);
       appendContent += `*Filed: ${timestamp}*
 
 `;
@@ -1072,7 +1108,7 @@ var FilingService = class {
    */
   async getFilePreview(targetPath) {
     const file = this.app.vault.getAbstractFileByPath(targetPath);
-    if (!(file instanceof import_obsidian9.TFile)) {
+    if (!(file instanceof import_obsidian10.TFile)) {
       return "File not found";
     }
     const content = await this.app.vault.read(file);
@@ -1083,7 +1119,7 @@ var FilingService = class {
 };
 
 // src/main.ts
-var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
+var JDexAIFilerPlugin = class extends import_obsidian11.Plugin {
   constructor() {
     super(...arguments);
     this.ribbonIconEl = null;
@@ -1101,7 +1137,7 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       editorCallback: (editor, view) => {
         const selectedText = editor.getSelection();
         if (!selectedText) {
-          new import_obsidian10.Notice("No text selected");
+          new import_obsidian11.Notice("No text selected");
           return;
         }
         this.fileContent(selectedText);
@@ -1113,7 +1149,7 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       editorCallback: (editor, view) => {
         const content = editor.getValue();
         if (!content) {
-          new import_obsidian10.Notice("Note is empty");
+          new import_obsidian11.Notice("Note is empty");
           return;
         }
         this.fileContent(content);
@@ -1123,17 +1159,17 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       id: "open-filer",
       name: "File selected text (quick)",
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian10.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian11.MarkdownView);
         if (view) {
           const editor = view.editor;
           const selectedText = editor.getSelection();
           if (selectedText) {
             this.fileContent(selectedText);
           } else {
-            new import_obsidian10.Notice('Select text to file or use "Open Filer Dialog"');
+            new import_obsidian11.Notice('Select text to file or use "Open Filer Dialog"');
           }
         } else {
-          new import_obsidian10.Notice("Open a note first");
+          new import_obsidian11.Notice("Open a note first");
         }
       }
     });
@@ -1149,7 +1185,7 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       name: "Clear JDex index cache",
       callback: () => {
         this.jdexParser.clearCache();
-        new import_obsidian10.Notice("JDex index cache cleared");
+        new import_obsidian11.Notice("JDex index cache cleared");
       }
     });
     this.addSettingTab(new JDexAIFilerSettingTab(this.app, this));
@@ -1172,27 +1208,27 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
   }
   setupRibbonIcon() {
     this.ribbonIconEl = this.addRibbonIcon("file-input", "JDex AI Filer", () => {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian10.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian11.MarkdownView);
       if (view) {
         const editor = view.editor;
         const selectedText = editor.getSelection();
         if (selectedText) {
           this.fileContent(selectedText);
         } else {
-          new import_obsidian10.Notice("Select text to file");
+          new import_obsidian11.Notice("Select text to file");
         }
       } else {
-        new import_obsidian10.Notice("Open a note first");
+        new import_obsidian11.Notice("Open a note first");
       }
     });
   }
   async fileContent(content) {
     const validationError = this.validateProviderConfig();
     if (validationError) {
-      new import_obsidian10.Notice(validationError);
+      new import_obsidian11.Notice(validationError);
       return;
     }
-    new import_obsidian10.Notice("Analyzing content...");
+    new import_obsidian11.Notice("Analyzing content...");
     try {
       const index = await this.jdexParser.getIndex(
         this.settings.jdexRootFolder,
@@ -1201,7 +1237,7 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       );
       if (index.areas.length === 0) {
         const location = this.settings.jdexRootFolder || "vault root";
-        new import_obsidian10.Notice(`No JDex structure found in ${location}. Create folders like "10-19 Area name"`);
+        new import_obsidian11.Notice(`No JDex structure found in ${location}. Create folders like "10-19 Area name"`);
         return;
       }
       const indexText = buildCompactIndex(index);
@@ -1215,7 +1251,7 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
         temperature: this.settings.temperature
       });
       if (response.suggestions.length === 0) {
-        new import_obsidian10.Notice("No filing suggestions found. Content may not match any JDex location.");
+        new import_obsidian11.Notice("No filing suggestions found. Content may not match any JDex location.");
         return;
       }
       for (const suggestion of response.suggestions) {
@@ -1227,7 +1263,7 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       }
       const validSuggestions = response.suggestions.filter((s) => s.targetPath);
       if (validSuggestions.length === 0) {
-        new import_obsidian10.Notice("Suggested locations not found in vault");
+        new import_obsidian11.Notice("Suggested locations not found in vault");
         return;
       }
       const defaultOptions = {
@@ -1246,16 +1282,16 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
       ).open();
     } catch (error) {
       console.error("JDex AI Filer error:", error);
-      new import_obsidian10.Notice("Error: " + error.message);
+      new import_obsidian11.Notice("Error: " + error.message);
     }
   }
   async performFiling(content, suggestion, options) {
     try {
       await this.filingService.fileContent(content, suggestion, options);
-      new import_obsidian10.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+      new import_obsidian11.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
     } catch (error) {
       console.error("Filing error:", error);
-      new import_obsidian10.Notice("Failed to file content: " + error.message);
+      new import_obsidian11.Notice("Failed to file content: " + error.message);
     }
   }
   /**
@@ -1269,10 +1305,10 @@ var JDexAIFilerPlugin = class extends import_obsidian10.Plugin {
         targetPath: destination.path
       };
       await this.filingService.fileContent(content, suggestion, options);
-      new import_obsidian10.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+      new import_obsidian11.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
     } catch (error) {
       console.error("Filing error:", error);
-      new import_obsidian10.Notice("Failed to file content: " + error.message);
+      new import_obsidian11.Notice("Failed to file content: " + error.message);
     }
   }
   validateProviderConfig() {

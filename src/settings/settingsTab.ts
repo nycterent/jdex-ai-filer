@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type JDexAIFilerPlugin from '../main';
+import { FolderSuggestModal } from '../modals/folderSuggestModal';
 
 export class JDexAIFilerSettingTab extends PluginSettingTab {
 	plugin: JDexAIFilerPlugin;
@@ -47,13 +48,20 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('JDex root folder')
-			.setDesc('Folder containing your JDex structure (leave empty for vault root)')
-			.addText(text => text
-				.setPlaceholder('JDex - Life Admin System')
-				.setValue(this.plugin.settings.jdexRootFolder)
-				.onChange(async (value) => {
-					this.plugin.settings.jdexRootFolder = value;
-					await this.plugin.saveSettings();
+			.setDesc('Folder containing your JDex structure')
+			.addText(text => {
+				text.setValue(this.plugin.settings.jdexRootFolder || '(Vault root)')
+					.setDisabled(true);
+				text.inputEl.style.width = '200px';
+			})
+			.addButton(button => button
+				.setButtonText('Browse')
+				.onClick(() => {
+					new FolderSuggestModal(this.app, (folder) => {
+						this.plugin.settings.jdexRootFolder = folder.isRoot() ? '' : folder.path;
+						this.plugin.saveSettings();
+						this.display();
+					}).open();
 				}));
 
 		// Filing behavior section
