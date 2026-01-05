@@ -3,6 +3,7 @@ import { LLMProvider } from './llmProvider';
 import { OpenAIProvider } from './openaiProvider';
 import { AnthropicProvider } from './anthropicProvider';
 import { OllamaProvider } from './ollamaProvider';
+import { OpenRouterProvider } from './openrouterProvider';
 
 /**
  * Factory to create the appropriate LLM provider based on settings
@@ -25,6 +26,12 @@ export function createProvider(settings: JDexAIFilerSettings): LLMProvider {
 			return new OllamaProvider(
 				settings.ollamaEndpoint,
 				settings.ollamaModel
+			);
+
+		case 'openrouter':
+			return new OpenRouterProvider(
+				settings.openrouterApiKey,
+				settings.openrouterModel
 			);
 
 		default:

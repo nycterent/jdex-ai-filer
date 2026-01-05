@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => JDexAIFilerPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -38,6 +38,8 @@ var DEFAULT_SETTINGS = {
   anthropicModel: "claude-sonnet-4-20250514",
   ollamaEndpoint: "http://localhost:11434",
   ollamaModel: "llama3.2",
+  openrouterApiKey: "",
+  openrouterModel: "anthropic/claude-3.5-sonnet",
   addTimestamp: true,
   timestampFormat: "YYYY-MM-DD HH:mm",
   defaultHeader: "",
@@ -60,12 +62,14 @@ var JDexAIFilerSettingTab = class extends import_obsidian.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "JDex AI Filer Settings" });
-    new import_obsidian.Setting(containerEl).setName("LLM Provider").setDesc("Select your AI provider for filing suggestions").addDropdown((dropdown) => dropdown.addOption("openai", "OpenAI").addOption("anthropic", "Anthropic Claude").addOption("ollama", "Ollama (Local)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+    new import_obsidian.Setting(containerEl).setName("LLM Provider").setDesc("Select your AI provider for filing suggestions").addDropdown((dropdown) => dropdown.addOption("openrouter", "OpenRouter (Multi-Model)").addOption("openai", "OpenAI").addOption("anthropic", "Anthropic Claude").addOption("ollama", "Ollama (Local)").setValue(this.plugin.settings.provider).onChange(async (value) => {
       this.plugin.settings.provider = value;
       await this.plugin.saveSettings();
       this.display();
     }));
-    if (this.plugin.settings.provider === "openai") {
+    if (this.plugin.settings.provider === "openrouter") {
+      this.displayOpenRouterSettings(containerEl);
+    } else if (this.plugin.settings.provider === "openai") {
       this.displayOpenAISettings(containerEl);
     } else if (this.plugin.settings.provider === "anthropic") {
       this.displayAnthropicSettings(containerEl);
@@ -136,6 +140,20 @@ var JDexAIFilerSettingTab = class extends import_obsidian.PluginSettingTab {
     });
     new import_obsidian.Setting(containerEl).setName("Model").setDesc("Anthropic model to use").addDropdown((dropdown) => dropdown.addOption("claude-sonnet-4-20250514", "Claude Sonnet 4 (Recommended)").addOption("claude-3-5-haiku-20241022", "Claude 3.5 Haiku (Fast)").addOption("claude-3-5-sonnet-20241022", "Claude 3.5 Sonnet").setValue(this.plugin.settings.anthropicModel).onChange(async (value) => {
       this.plugin.settings.anthropicModel = value;
+      await this.plugin.saveSettings();
+    }));
+  }
+  displayOpenRouterSettings(containerEl) {
+    containerEl.createEl("h3", { text: "OpenRouter Settings" });
+    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Your OpenRouter API key").addText((text) => {
+      text.setPlaceholder("sk-or-...").setValue(this.plugin.settings.openrouterApiKey).onChange(async (value) => {
+        this.plugin.settings.openrouterApiKey = value;
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.type = "password";
+    });
+    new import_obsidian.Setting(containerEl).setName("Model").setDesc("OpenRouter model ID (e.g., anthropic/claude-3.5-sonnet)").addText((text) => text.setPlaceholder("anthropic/claude-3.5-sonnet").setValue(this.plugin.settings.openrouterModel).onChange(async (value) => {
+      this.plugin.settings.openrouterModel = value;
       await this.plugin.saveSettings();
     }));
   }
@@ -585,6 +603,78 @@ ${request.userContent}`;
   }
 };
 
+// src/providers/openrouterProvider.ts
+var import_obsidian6 = require("obsidian");
+var OpenRouterProvider = class extends LLMProvider {
+  constructor(apiKey, model) {
+    super();
+    this.name = "OpenRouter";
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+  async sendRequest(request) {
+    var _a, _b;
+    const response = await (0, import_obsidian6.requestUrl)({
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://obsidian.md",
+        "X-Title": "JDex AI Filer"
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: "system",
+            content: request.systemPrompt
+          },
+          {
+            role: "user",
+            content: request.userContent
+          }
+        ],
+        max_tokens: request.maxTokens,
+        temperature: request.temperature
+      })
+    });
+    if (response.status !== 200) {
+      throw new Error(`OpenRouter API error: ${response.status} - ${response.text}`);
+    }
+    const data = response.json;
+    const rawResponse = ((_b = (_a = data.choices[0]) == null ? void 0 : _a.message) == null ? void 0 : _b.content) || "";
+    const suggestions = this.parseResponse(rawResponse);
+    return {
+      suggestions,
+      reasoning: this.extractReasoning(rawResponse),
+      rawResponse
+    };
+  }
+  async testConnection() {
+    try {
+      const response = await (0, import_obsidian6.requestUrl)({
+        url: "https://openrouter.ai/api/v1/models",
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${this.apiKey}`
+        }
+      });
+      return response.status === 200;
+    } catch (e) {
+      return false;
+    }
+  }
+  extractReasoning(rawResponse) {
+    try {
+      const parsed = JSON.parse(rawResponse);
+      return parsed.reasoning || parsed.explanation || "";
+    } catch (e) {
+      return "";
+    }
+  }
+};
+
 // src/providers/providerFactory.ts
 function createProvider(settings) {
   switch (settings.provider) {
@@ -602,6 +692,11 @@ function createProvider(settings) {
       return new OllamaProvider(
         settings.ollamaEndpoint,
         settings.ollamaModel
+      );
+    case "openrouter":
+      return new OpenRouterProvider(
+        settings.openrouterApiKey,
+        settings.openrouterModel
       );
     default:
       throw new Error(`Unknown provider: ${settings.provider}`);
@@ -664,8 +759,8 @@ Respond with JSON only.`;
 }
 
 // src/modals/suggestionModal.ts
-var import_obsidian6 = require("obsidian");
-var SuggestionModal = class extends import_obsidian6.Modal {
+var import_obsidian7 = require("obsidian");
+var SuggestionModal = class extends import_obsidian7.Modal {
   constructor(app, content, suggestions, defaultOptions, onConfirm) {
     super(app);
     this.selectedSuggestion = null;
@@ -730,10 +825,10 @@ var SuggestionModal = class extends import_obsidian6.Modal {
       });
     }
     contentEl.createEl("h3", { text: "Options" });
-    new import_obsidian6.Setting(contentEl).setName("Add timestamp").addToggle((toggle) => toggle.setValue(this.fileOptions.addTimestamp).onChange((value) => {
+    new import_obsidian7.Setting(contentEl).setName("Add timestamp").addToggle((toggle) => toggle.setValue(this.fileOptions.addTimestamp).onChange((value) => {
       this.fileOptions.addTimestamp = value;
     }));
-    new import_obsidian6.Setting(contentEl).setName("Under header").setDesc("Append under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.fileOptions.header || "").onChange((value) => {
+    new import_obsidian7.Setting(contentEl).setName("Under header").setDesc("Append under this header (leave empty for end of file)").addText((text) => text.setPlaceholder("## Notes").setValue(this.fileOptions.header || "").onChange((value) => {
       this.fileOptions.header = value;
     }));
     const buttonContainer = contentEl.createDiv("jdex-modal-buttons");
@@ -748,7 +843,7 @@ var SuggestionModal = class extends import_obsidian6.Modal {
         this.onConfirm(this.selectedSuggestion, this.fileOptions);
         this.close();
       } else {
-        new import_obsidian6.Notice("Please select a location");
+        new import_obsidian7.Notice("Please select a location");
       }
     });
     if (this.suggestions.length === 0) {
@@ -767,7 +862,7 @@ var SuggestionModal = class extends import_obsidian6.Modal {
 };
 
 // src/services/filingService.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var FilingService = class {
   constructor(app) {
     this.app = app;
@@ -777,12 +872,12 @@ var FilingService = class {
    */
   async fileContent(content, suggestion, options) {
     const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
-    if (!(file instanceof import_obsidian7.TFile)) {
+    if (!(file instanceof import_obsidian8.TFile)) {
       throw new Error(`File not found: ${suggestion.targetPath}`);
     }
     let appendContent = "\n\n";
     if (options.addTimestamp) {
-      const timestamp = (0, import_obsidian7.moment)().format(options.timestampFormat);
+      const timestamp = (0, import_obsidian8.moment)().format(options.timestampFormat);
       appendContent += `*Filed: ${timestamp}*
 
 `;
@@ -833,7 +928,7 @@ var FilingService = class {
    */
   async getFilePreview(targetPath) {
     const file = this.app.vault.getAbstractFileByPath(targetPath);
-    if (!(file instanceof import_obsidian7.TFile)) {
+    if (!(file instanceof import_obsidian8.TFile)) {
       return "File not found";
     }
     const content = await this.app.vault.read(file);
@@ -844,7 +939,7 @@ var FilingService = class {
 };
 
 // src/main.ts
-var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
+var JDexAIFilerPlugin = class extends import_obsidian9.Plugin {
   constructor() {
     super(...arguments);
     this.ribbonIconEl = null;
@@ -862,7 +957,7 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
       editorCallback: (editor, view) => {
         const selectedText = editor.getSelection();
         if (!selectedText) {
-          new import_obsidian8.Notice("No text selected");
+          new import_obsidian9.Notice("No text selected");
           return;
         }
         this.fileContent(selectedText);
@@ -874,7 +969,7 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
       editorCallback: (editor, view) => {
         const content = editor.getValue();
         if (!content) {
-          new import_obsidian8.Notice("Note is empty");
+          new import_obsidian9.Notice("Note is empty");
           return;
         }
         this.fileContent(content);
@@ -884,17 +979,17 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
       id: "open-filer",
       name: "Open AI Filer",
       callback: () => {
-        const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+        const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
         if (view) {
           const editor = view.editor;
           const selectedText = editor.getSelection();
           if (selectedText) {
             this.fileContent(selectedText);
           } else {
-            new import_obsidian8.Notice('Select text to file or use "File current note"');
+            new import_obsidian9.Notice('Select text to file or use "File current note"');
           }
         } else {
-          new import_obsidian8.Notice("Open a note first");
+          new import_obsidian9.Notice("Open a note first");
         }
       }
     });
@@ -903,7 +998,7 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
       name: "Clear JDex index cache",
       callback: () => {
         this.jdexParser.clearCache();
-        new import_obsidian8.Notice("JDex index cache cleared");
+        new import_obsidian9.Notice("JDex index cache cleared");
       }
     });
     this.addSettingTab(new JDexAIFilerSettingTab(this.app, this));
@@ -926,34 +1021,34 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
   }
   setupRibbonIcon() {
     this.ribbonIconEl = this.addRibbonIcon("file-input", "JDex AI Filer", () => {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian8.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian9.MarkdownView);
       if (view) {
         const editor = view.editor;
         const selectedText = editor.getSelection();
         if (selectedText) {
           this.fileContent(selectedText);
         } else {
-          new import_obsidian8.Notice("Select text to file");
+          new import_obsidian9.Notice("Select text to file");
         }
       } else {
-        new import_obsidian8.Notice("Open a note first");
+        new import_obsidian9.Notice("Open a note first");
       }
     });
   }
   async fileContent(content) {
     const validationError = this.validateProviderConfig();
     if (validationError) {
-      new import_obsidian8.Notice(validationError);
+      new import_obsidian9.Notice(validationError);
       return;
     }
-    new import_obsidian8.Notice("Analyzing content...");
+    new import_obsidian9.Notice("Analyzing content...");
     try {
       const index = await this.jdexParser.getIndex(
         this.settings.cacheJdexIndex,
         this.settings.cacheTimeout
       );
       if (index.areas.length === 0) {
-        new import_obsidian8.Notice('No JDex structure found in vault. Create folders like "10-19 Area name"');
+        new import_obsidian9.Notice('No JDex structure found in vault. Create folders like "10-19 Area name"');
         return;
       }
       const indexText = buildCompactIndex(index);
@@ -967,7 +1062,7 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
         temperature: this.settings.temperature
       });
       if (response.suggestions.length === 0) {
-        new import_obsidian8.Notice("No filing suggestions found. Content may not match any JDex location.");
+        new import_obsidian9.Notice("No filing suggestions found. Content may not match any JDex location.");
         return;
       }
       for (const suggestion of response.suggestions) {
@@ -979,7 +1074,7 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
       }
       const validSuggestions = response.suggestions.filter((s) => s.targetPath);
       if (validSuggestions.length === 0) {
-        new import_obsidian8.Notice("Suggested locations not found in vault");
+        new import_obsidian9.Notice("Suggested locations not found in vault");
         return;
       }
       const defaultOptions = {
@@ -998,16 +1093,16 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
       ).open();
     } catch (error) {
       console.error("JDex AI Filer error:", error);
-      new import_obsidian8.Notice("Error: " + error.message);
+      new import_obsidian9.Notice("Error: " + error.message);
     }
   }
   async performFiling(content, suggestion, options) {
     try {
       await this.filingService.fileContent(content, suggestion, options);
-      new import_obsidian8.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+      new import_obsidian9.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
     } catch (error) {
       console.error("Filing error:", error);
-      new import_obsidian8.Notice("Failed to file content: " + error.message);
+      new import_obsidian9.Notice("Failed to file content: " + error.message);
     }
   }
   validateProviderConfig() {
@@ -1020,6 +1115,9 @@ var JDexAIFilerPlugin = class extends import_obsidian8.Plugin {
     }
     if (provider === "ollama" && !this.settings.ollamaEndpoint) {
       return "Ollama endpoint not configured. Go to Settings > JDex AI Filer";
+    }
+    if (provider === "openrouter" && !this.settings.openrouterApiKey) {
+      return "OpenRouter API key not configured. Go to Settings > JDex AI Filer";
     }
     return null;
   }

@@ -237,6 +237,10 @@ export default class JDexAIFilerPlugin extends Plugin {
 			return 'Ollama endpoint not configured. Go to Settings > JDex AI Filer';
 		}
 
+		if (provider === 'openrouter' && !this.settings.openrouterApiKey) {
+			return 'OpenRouter API key not configured. Go to Settings > JDex AI Filer';
+		}
+
 		return null;
 	}
 }

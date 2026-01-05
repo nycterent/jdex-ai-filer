@@ -1,5 +1,5 @@
 // LLM Provider Types
-export type LLMProviderType = 'openai' | 'anthropic' | 'ollama';
+export type LLMProviderType = 'openai' | 'anthropic' | 'ollama' | 'openrouter';
 
 export interface LLMRequest {
 	systemPrompt: string;
@@ -68,6 +68,10 @@ export interface JDexAIFilerSettings {
 	ollamaEndpoint: string;
 	ollamaModel: string;
 
+	// OpenRouter Settings
+	openrouterApiKey: string;
+	openrouterModel: string;
+
 	// Filing Behavior
 	addTimestamp: boolean;
 	timestampFormat: string;
@@ -92,6 +96,8 @@ export const DEFAULT_SETTINGS: JDexAIFilerSettings = {
 	anthropicModel: 'claude-sonnet-4-20250514',
 	ollamaEndpoint: 'http://localhost:11434',
 	ollamaModel: 'llama3.2',
+	openrouterApiKey: '',
+	openrouterModel: 'anthropic/claude-3.5-sonnet',
 	addTimestamp: true,
 	timestampFormat: 'YYYY-MM-DD HH:mm',
 	defaultHeader: '',

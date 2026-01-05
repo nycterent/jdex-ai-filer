@@ -20,18 +20,21 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 			.setName('LLM Provider')
 			.setDesc('Select your AI provider for filing suggestions')
 			.addDropdown(dropdown => dropdown
+				.addOption('openrouter', 'OpenRouter (Multi-Model)')
 				.addOption('openai', 'OpenAI')
 				.addOption('anthropic', 'Anthropic Claude')
 				.addOption('ollama', 'Ollama (Local)')
 				.setValue(this.plugin.settings.provider)
-				.onChange(async (value: 'openai' | 'anthropic' | 'ollama') => {
+				.onChange(async (value: 'openai' | 'anthropic' | 'ollama' | 'openrouter') => {
 					this.plugin.settings.provider = value;
 					await this.plugin.saveSettings();
 					this.display(); // Refresh to show provider-specific settings
 				}));
 
 		// Provider-specific settings
-		if (this.plugin.settings.provider === 'openai') {
+		if (this.plugin.settings.provider === 'openrouter') {
+			this.displayOpenRouterSettings(containerEl);
+		} else if (this.plugin.settings.provider === 'openai') {
 			this.displayOpenAISettings(containerEl);
 		} else if (this.plugin.settings.provider === 'anthropic') {
 			this.displayAnthropicSettings(containerEl);
@@ -197,6 +200,34 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.anthropicModel)
 				.onChange(async (value) => {
 					this.plugin.settings.anthropicModel = value;
+					await this.plugin.saveSettings();
+				}));
+	}
+
+	private displayOpenRouterSettings(containerEl: HTMLElement): void {
+		containerEl.createEl('h3', { text: 'OpenRouter Settings' });
+
+		new Setting(containerEl)
+			.setName('API Key')
+			.setDesc('Your OpenRouter API key')
+			.addText(text => {
+				text.setPlaceholder('sk-or-...')
+					.setValue(this.plugin.settings.openrouterApiKey)
+					.onChange(async (value) => {
+						this.plugin.settings.openrouterApiKey = value;
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.type = 'password';
+			});
+
+		new Setting(containerEl)
+			.setName('Model')
+			.setDesc('OpenRouter model ID (e.g., anthropic/claude-3.5-sonnet)')
+			.addText(text => text
+				.setPlaceholder('anthropic/claude-3.5-sonnet')
+				.setValue(this.plugin.settings.openrouterModel)
+				.onChange(async (value) => {
+					this.plugin.settings.openrouterModel = value;
 					await this.plugin.saveSettings();
 				}));
 	}
