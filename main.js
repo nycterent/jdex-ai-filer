@@ -235,8 +235,7 @@ var JDexParser = class {
    */
   async parseAreaFolder(folder) {
     const match = folder.name.match(AREA_PATTERN);
-    if (!match)
-      return null;
+    if (!match) return null;
     const areaId = `${match[1]}-${match[2]}`;
     const areaName = match[3].trim();
     const categories = [];
@@ -261,8 +260,7 @@ var JDexParser = class {
    */
   async parseCategoryFolder(folder, areaId) {
     const match = folder.name.match(CATEGORY_PATTERN);
-    if (!match)
-      return null;
+    if (!match) return null;
     const categoryId = match[1];
     const categoryName = match[2].trim();
     const areaStart = parseInt(areaId.split("-")[0]);
@@ -294,8 +292,7 @@ var JDexParser = class {
   parseIdFile(file, categoryId) {
     const baseName = file.basename;
     const match = baseName.match(ID_PATTERN);
-    if (!match)
-      return null;
+    if (!match) return null;
     const idCategory = match[1];
     const idNumber = match[2];
     const idName = match[3].trim();
@@ -855,8 +852,7 @@ var SuggestionModal = class extends import_obsidian7.Modal {
     contentEl.empty();
   }
   truncateContent(content, maxLength) {
-    if (content.length <= maxLength)
-      return content;
+    if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + "...";
   }
 };
