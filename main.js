@@ -321,24 +321,28 @@ var JDexParser = class {
    */
   async scanExternalFolder(folderPath) {
     const areas = [];
+    console.log("JDex AI Filer - Scanning external folder:", folderPath);
     if (!fs.existsSync(folderPath)) {
-      console.error("JDex folder not found:", folderPath);
+      console.error("JDex AI Filer - Folder not found:", folderPath);
       return { areas, lastUpdated: Date.now() };
     }
     try {
       const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+      console.log("JDex AI Filer - Found entries:", entries.map((e) => e.name));
       for (const entry of entries) {
         if (entry.isDirectory()) {
           const areaPath = path.join(folderPath, entry.name);
           const area = this.parseExternalAreaFolder(areaPath, entry.name);
           if (area) {
+            console.log("JDex AI Filer - Found area:", area.id, area.name, "- Categories:", area.categories.length);
             areas.push(area);
           }
         }
       }
       areas.sort((a, b) => a.id.localeCompare(b.id));
+      console.log("JDex AI Filer - Total areas found:", areas.length);
     } catch (error) {
-      console.error("Error scanning external folder:", error);
+      console.error("JDex AI Filer - Error scanning folder:", error);
     }
     return {
       areas,
@@ -381,7 +385,10 @@ var JDexParser = class {
    */
   parseExternalCategoryFolder(folderPath, folderName, areaId) {
     const match = folderName.match(CATEGORY_PATTERN);
-    if (!match) return null;
+    if (!match) {
+      console.log("JDex AI Filer - Skipping (not category pattern):", folderName);
+      return null;
+    }
     const categoryId = match[1];
     const categoryName = match[2].trim();
     const areaStart = parseInt(areaId.split("-")[0]);
@@ -409,8 +416,11 @@ var JDexParser = class {
         }
       }
       items.sort((a, b) => a.id.localeCompare(b.id));
+      if (items.length > 0) {
+        console.log("JDex AI Filer - Category", categoryId, "items:", items.map((i) => i.id));
+      }
     } catch (error) {
-      console.error("Error parsing external category folder:", error);
+      console.error("JDex AI Filer - Error parsing category:", error);
     }
     return {
       id: categoryId,
