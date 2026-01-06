@@ -1489,7 +1489,16 @@ var JDexAIFilerPlugin = class extends import_obsidian11.Plugin {
   async performFiling(content, suggestion, options) {
     try {
       await this.filingService.fileContent(content, suggestion, options);
-      new import_obsidian11.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+      if (isAbsolutePath(suggestion.targetPath)) {
+        new import_obsidian11.Notice(`\u2713 Filed to ${suggestion.jdexId} ${suggestion.jdexName}
+${suggestion.targetPath}`, 5e3);
+      } else {
+        const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
+        if (file instanceof import_obsidian11.TFile) {
+          await this.app.workspace.getLeaf().openFile(file);
+        }
+        new import_obsidian11.Notice(`\u2713 Filed to ${suggestion.jdexId} ${suggestion.jdexName}`, 5e3);
+      }
     } catch (error) {
       console.error("Filing error:", error);
       new import_obsidian11.Notice("Failed to file content: " + error.message);
@@ -1506,7 +1515,16 @@ var JDexAIFilerPlugin = class extends import_obsidian11.Plugin {
         targetPath: destination.path
       };
       await this.filingService.fileContent(content, suggestion, options);
-      new import_obsidian11.Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+      if (isAbsolutePath(suggestion.targetPath)) {
+        new import_obsidian11.Notice(`\u2713 Filed to ${suggestion.jdexId} ${suggestion.jdexName}
+${suggestion.targetPath}`, 5e3);
+      } else {
+        const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
+        if (file instanceof import_obsidian11.TFile) {
+          await this.app.workspace.getLeaf().openFile(file);
+        }
+        new import_obsidian11.Notice(`\u2713 Filed to ${suggestion.jdexId} ${suggestion.jdexName}`, 5e3);
+      }
     } catch (error) {
       console.error("Filing error:", error);
       new import_obsidian11.Notice("Failed to file content: " + error.message);

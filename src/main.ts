@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Notice, Plugin } from 'obsidian';
+import { App, Editor, MarkdownView, Notice, Plugin, TFile } from 'obsidian';
 import { JDexAIFilerSettings, DEFAULT_SETTINGS, FileOptions } from './types';
 import { JDexAIFilerSettingTab } from './settings/settingsTab';
 import { JDexParser } from './jdex/parser';
@@ -8,6 +8,7 @@ import { buildSystemPrompt, buildUserPrompt } from './prompts/systemPrompt';
 import { SuggestionModal } from './modals/suggestionModal';
 import { InputModal } from './modals/inputModal';
 import { FilingService } from './services/filingService';
+import { isAbsolutePath } from './utils/folderPicker';
 
 export default class JDexAIFilerPlugin extends Plugin {
 	settings: JDexAIFilerSettings;
@@ -227,7 +228,19 @@ export default class JDexAIFilerPlugin extends Plugin {
 	) {
 		try {
 			await this.filingService.fileContent(content, suggestion as any, options);
-			new Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+
+			// Open the file to show where content was filed
+			if (isAbsolutePath(suggestion.targetPath)) {
+				// External file - can't open in Obsidian, show path in notice
+				new Notice(`✓ Filed to ${suggestion.jdexId} ${suggestion.jdexName}\n${suggestion.targetPath}`, 5000);
+			} else {
+				// Vault file - open it
+				const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
+				if (file instanceof TFile) {
+					await this.app.workspace.getLeaf().openFile(file);
+				}
+				new Notice(`✓ Filed to ${suggestion.jdexId} ${suggestion.jdexName}`, 5000);
+			}
 		} catch (error) {
 			console.error('Filing error:', error);
 			new Notice('Failed to file content: ' + (error as Error).message);
@@ -249,7 +262,19 @@ export default class JDexAIFilerPlugin extends Plugin {
 				targetPath: destination.path
 			};
 			await this.filingService.fileContent(content, suggestion as any, options);
-			new Notice(`Filed to ${suggestion.jdexId} ${suggestion.jdexName}`);
+
+			// Open the file to show where content was filed
+			if (isAbsolutePath(suggestion.targetPath)) {
+				// External file - can't open in Obsidian, show path in notice
+				new Notice(`✓ Filed to ${suggestion.jdexId} ${suggestion.jdexName}\n${suggestion.targetPath}`, 5000);
+			} else {
+				// Vault file - open it
+				const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
+				if (file instanceof TFile) {
+					await this.app.workspace.getLeaf().openFile(file);
+				}
+				new Notice(`✓ Filed to ${suggestion.jdexId} ${suggestion.jdexName}`, 5000);
+			}
 		} catch (error) {
 			console.error('Filing error:', error);
 			new Notice('Failed to file content: ' + (error as Error).message);
