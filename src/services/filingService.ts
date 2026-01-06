@@ -1,5 +1,7 @@
 import { App, TFile, moment } from 'obsidian';
 import { FilingSuggestion, FileOptions } from '../types';
+import * as fs from 'fs';
+import { isAbsolutePath } from '../utils/folderPicker';
 
 export class FilingService {
 	private app: App;
@@ -9,48 +11,96 @@ export class FilingService {
 	}
 
 	/**
-	 * Append content to a JDex file
+	 * Append content to a JDex file (vault or external)
 	 */
 	async fileContent(
 		content: string,
 		suggestion: FilingSuggestion,
 		options: FileOptions
 	): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(suggestion.targetPath);
+		// Route to appropriate method based on path type
+		if (isAbsolutePath(suggestion.targetPath)) {
+			await this.fileToExternal(content, suggestion.targetPath, options);
+		} else {
+			await this.fileToVault(content, suggestion.targetPath, options);
+		}
+	}
+
+	/**
+	 * Append content to a vault file
+	 */
+	private async fileToVault(
+		content: string,
+		targetPath: string,
+		options: FileOptions
+	): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(targetPath);
 
 		if (!(file instanceof TFile)) {
-			throw new Error(`File not found: ${suggestion.targetPath}`);
+			throw new Error(`File not found: ${targetPath}`);
 		}
 
-		// Build the content to append
-		let appendContent = '\n\n';
-
-		// Add timestamp if requested
-		if (options.addTimestamp) {
-			const timestamp = moment().format(options.timestampFormat);
-			appendContent += `*Filed: ${timestamp}*\n\n`;
-		}
-
-		// Add the content
-		appendContent += content;
+		const appendContent = this.formatContent(content, options);
 
 		// Read existing file content
 		let existingContent = await this.app.vault.read(file);
 
 		if (options.header) {
-			// Find the header and append after it
 			existingContent = this.appendUnderHeader(
 				existingContent,
 				options.header,
 				appendContent
 			);
 		} else {
-			// Append at end of file
 			existingContent += appendContent;
 		}
 
-		// Write back to file
 		await this.app.vault.modify(file, existingContent);
+	}
+
+	/**
+	 * Append content to an external file (outside vault)
+	 */
+	private async fileToExternal(
+		content: string,
+		targetPath: string,
+		options: FileOptions
+	): Promise<void> {
+		if (!fs.existsSync(targetPath)) {
+			throw new Error(`File not found: ${targetPath}`);
+		}
+
+		const appendContent = this.formatContent(content, options);
+
+		// Read existing file content
+		let existingContent = fs.readFileSync(targetPath, 'utf-8');
+
+		if (options.header) {
+			existingContent = this.appendUnderHeader(
+				existingContent,
+				options.header,
+				appendContent
+			);
+		} else {
+			existingContent += appendContent;
+		}
+
+		fs.writeFileSync(targetPath, existingContent, 'utf-8');
+	}
+
+	/**
+	 * Format content with timestamp if requested
+	 */
+	private formatContent(content: string, options: FileOptions): string {
+		let appendContent = '\n\n';
+
+		if (options.addTimestamp) {
+			const timestamp = moment().format(options.timestampFormat);
+			appendContent += `*Filed: ${timestamp}*\n\n`;
+		}
+
+		appendContent += content;
+		return appendContent;
 	}
 
 	/**
@@ -104,13 +154,21 @@ export class FilingService {
 	 * Get a preview of where content will be filed
 	 */
 	async getFilePreview(targetPath: string): Promise<string> {
-		const file = this.app.vault.getAbstractFileByPath(targetPath);
+		let content: string;
 
-		if (!(file instanceof TFile)) {
-			return 'File not found';
+		if (isAbsolutePath(targetPath)) {
+			if (!fs.existsSync(targetPath)) {
+				return 'File not found';
+			}
+			content = fs.readFileSync(targetPath, 'utf-8');
+		} else {
+			const file = this.app.vault.getAbstractFileByPath(targetPath);
+			if (!(file instanceof TFile)) {
+				return 'File not found';
+			}
+			content = await this.app.vault.read(file);
 		}
 
-		const content = await this.app.vault.read(file);
 		const lines = content.split('\n');
 		const previewLines = lines.slice(0, 10);
 

@@ -1,6 +1,6 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import type JDexAIFilerPlugin from '../main';
-import { FolderSuggestModal } from '../modals/folderSuggestModal';
+import { pickFolder } from '../utils/folderPicker';
 
 export class JDexAIFilerSettingTab extends PluginSettingTab {
 	plugin: JDexAIFilerPlugin;
@@ -48,20 +48,27 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('JDex root folder')
-			.setDesc('Folder containing your JDex structure')
+			.setDesc('Folder containing your JDex structure (can be anywhere on your system)')
 			.addText(text => {
-				text.setValue(this.plugin.settings.jdexRootFolder || '(Vault root)')
-					.setDisabled(true);
-				text.inputEl.style.width = '200px';
+				text.setValue(this.plugin.settings.jdexRootFolder || '')
+					.setPlaceholder('/path/to/jdex-folder')
+					.onChange(async (value) => {
+						this.plugin.settings.jdexRootFolder = value;
+						await this.plugin.saveSettings();
+					});
+				text.inputEl.style.width = '300px';
 			})
 			.addButton(button => button
 				.setButtonText('Browse')
-				.onClick(() => {
-					new FolderSuggestModal(this.app, (folder) => {
-						this.plugin.settings.jdexRootFolder = folder.isRoot() ? '' : folder.path;
-						this.plugin.saveSettings();
+				.onClick(async () => {
+					const folder = await pickFolder();
+					if (folder) {
+						this.plugin.settings.jdexRootFolder = folder;
+						await this.plugin.saveSettings();
 						this.display();
-					}).open();
+					} else {
+						new Notice('Folder picker not available. Please enter the path manually.');
+					}
 				}));
 
 		// Filing behavior section

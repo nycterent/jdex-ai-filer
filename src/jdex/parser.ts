@@ -1,5 +1,8 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { JDexArea, JDexCategory, JDexItem, JDexIndex } from '../types';
+import * as fs from 'fs';
+import * as path from 'path';
+import { isAbsolutePath } from '../utils/folderPicker';
 
 // Johnny.Decimal patterns
 const AREA_PATTERN = /^(\d{2})-(\d{2})\s+(.+)$/;      // "10-19 Life admin"
@@ -49,9 +52,22 @@ export class JDexParser {
 	}
 
 	/**
-	 * Scan the vault for JDex structure starting from specified folder
+	 * Scan the vault or external folder for JDex structure
 	 */
 	async scanVault(rootFolderPath: string = ''): Promise<JDexIndex> {
+		// Check if path is external (absolute path)
+		if (isAbsolutePath(rootFolderPath)) {
+			return this.scanExternalFolder(rootFolderPath);
+		}
+
+		// Otherwise use vault API
+		return this.scanVaultFolder(rootFolderPath);
+	}
+
+	/**
+	 * Scan a vault folder for JDex structure
+	 */
+	private async scanVaultFolder(rootFolderPath: string = ''): Promise<JDexIndex> {
 		const areas: JDexArea[] = [];
 
 		// Get the starting folder
@@ -84,6 +100,157 @@ export class JDexParser {
 		return {
 			areas,
 			lastUpdated: Date.now()
+		};
+	}
+
+	/**
+	 * Scan an external folder (outside vault) for JDex structure
+	 */
+	private async scanExternalFolder(folderPath: string): Promise<JDexIndex> {
+		const areas: JDexArea[] = [];
+
+		if (!fs.existsSync(folderPath)) {
+			console.error('JDex folder not found:', folderPath);
+			return { areas, lastUpdated: Date.now() };
+		}
+
+		try {
+			const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+
+			for (const entry of entries) {
+				if (entry.isDirectory()) {
+					const areaPath = path.join(folderPath, entry.name);
+					const area = this.parseExternalAreaFolder(areaPath, entry.name);
+					if (area) {
+						areas.push(area);
+					}
+				}
+			}
+
+			areas.sort((a, b) => a.id.localeCompare(b.id));
+		} catch (error) {
+			console.error('Error scanning external folder:', error);
+		}
+
+		return {
+			areas,
+			lastUpdated: Date.now()
+		};
+	}
+
+	/**
+	 * Parse an external area folder (XX-XX pattern)
+	 */
+	private parseExternalAreaFolder(folderPath: string, folderName: string): JDexArea | null {
+		const match = folderName.match(AREA_PATTERN);
+		if (!match) return null;
+
+		const areaId = `${match[1]}-${match[2]}`;
+		const areaName = match[3].trim();
+
+		const categories: JDexCategory[] = [];
+
+		try {
+			const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+
+			for (const entry of entries) {
+				if (entry.isDirectory()) {
+					const categoryPath = path.join(folderPath, entry.name);
+					const category = this.parseExternalCategoryFolder(categoryPath, entry.name, areaId);
+					if (category) {
+						categories.push(category);
+					}
+				}
+			}
+
+			categories.sort((a, b) => a.id.localeCompare(b.id));
+		} catch (error) {
+			console.error('Error parsing external area folder:', error);
+		}
+
+		return {
+			id: areaId,
+			name: areaName,
+			path: folderPath,
+			categories
+		};
+	}
+
+	/**
+	 * Parse an external category folder (XX pattern)
+	 */
+	private parseExternalCategoryFolder(folderPath: string, folderName: string, areaId: string): JDexCategory | null {
+		const match = folderName.match(CATEGORY_PATTERN);
+		if (!match) return null;
+
+		const categoryId = match[1];
+		const categoryName = match[2].trim();
+
+		// Verify category belongs to this area
+		const areaStart = parseInt(areaId.split('-')[0]);
+		const areaEnd = parseInt(areaId.split('-')[1]);
+		const catNum = parseInt(categoryId);
+
+		if (catNum < areaStart || catNum > areaEnd) {
+			return null;
+		}
+
+		const items: JDexItem[] = [];
+
+		try {
+			const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+
+			for (const entry of entries) {
+				if (entry.isFile() && entry.name.endsWith('.md')) {
+					const filePath = path.join(folderPath, entry.name);
+					const item = this.parseExternalIdFile(filePath, entry.name, categoryId);
+					if (item) {
+						items.push(item);
+					}
+				}
+			}
+
+			items.sort((a, b) => a.id.localeCompare(b.id));
+		} catch (error) {
+			console.error('Error parsing external category folder:', error);
+		}
+
+		return {
+			id: categoryId,
+			name: categoryName,
+			path: folderPath,
+			items
+		};
+	}
+
+	/**
+	 * Parse an external ID file (XX.XX pattern)
+	 */
+	private parseExternalIdFile(filePath: string, fileName: string, categoryId: string): JDexItem | null {
+		// Remove .md extension
+		const baseName = fileName.replace(/\.md$/, '');
+		const match = baseName.match(ID_PATTERN);
+
+		if (!match) return null;
+
+		const idCategory = match[1];
+		const idNumber = match[2];
+		const idName = match[3].trim();
+
+		// Verify this ID belongs to the category
+		if (idCategory !== categoryId) {
+			return null;
+		}
+
+		const fullId = `${idCategory}.${idNumber}`;
+		const idNum = parseInt(idNumber);
+
+		return {
+			id: fullId,
+			name: idName,
+			path: filePath,
+			isHeader: idNumber.endsWith('0') && idNum >= 10,
+			isReserved: idNum < 10
 		};
 	}
 
