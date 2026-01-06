@@ -282,8 +282,8 @@ export class JDexParser {
 		const fullId = `${idCategory}.${idNumber}`;
 		const idNum = parseInt(idNumber);
 
-		// Target file inside folder: same name as folder + .md
-		const targetFile = path.join(folderPath, `${folderName}.md`);
+		// Target file inside folder: use index.md (idiomatic JDex)
+		const targetFile = path.join(folderPath, 'index.md');
 
 		return {
 			id: fullId,
@@ -397,8 +397,8 @@ export class JDexParser {
 		const fullId = `${idCategory}.${idNumber}`;
 		const idNum = parseInt(idNumber);
 
-		// Target file inside folder: same name as folder + .md
-		const targetFile = `${folder.path}/${folder.name}.md`;
+		// Target file inside folder: use index.md (idiomatic JDex)
+		const targetFile = `${folder.path}/index.md`;
 
 		return {
 			id: fullId,

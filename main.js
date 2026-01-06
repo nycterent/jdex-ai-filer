@@ -456,7 +456,7 @@ var JDexParser = class {
     }
     const fullId = `${idCategory}.${idNumber}`;
     const idNum = parseInt(idNumber);
-    const targetFile = path.join(folderPath, `${folderName}.md`);
+    const targetFile = path.join(folderPath, "index.md");
     return {
       id: fullId,
       name: idName,
@@ -541,7 +541,7 @@ var JDexParser = class {
     }
     const fullId = `${idCategory}.${idNumber}`;
     const idNum = parseInt(idNumber);
-    const targetFile = `${folder.path}/${folder.name}.md`;
+    const targetFile = `${folder.path}/index.md`;
     return {
       id: fullId,
       name: idName,
@@ -1279,14 +1279,14 @@ var FilingService = class {
    * Append content to a vault file
    */
   async fileToVault(content, targetPath, options) {
-    var _a;
     let file = this.app.vault.getAbstractFileByPath(targetPath);
     let existingContent = "";
     if (file instanceof import_obsidian10.TFile) {
       existingContent = await this.app.vault.read(file);
     } else {
-      const fileName = ((_a = targetPath.split("/").pop()) == null ? void 0 : _a.replace(".md", "")) || "Notes";
-      existingContent = `# ${fileName}
+      const pathParts = targetPath.split("/");
+      const folderName = pathParts[pathParts.length - 2] || "Notes";
+      existingContent = `# ${folderName}
 `;
       await this.app.vault.create(targetPath, existingContent);
       file = this.app.vault.getAbstractFileByPath(targetPath);
@@ -1319,8 +1319,8 @@ var FilingService = class {
       if (!fs2.existsSync(dir)) {
         throw new Error(`Folder not found: ${dir}`);
       }
-      const fileName = path2.basename(targetPath, ".md");
-      existingContent = `# ${fileName}
+      const folderName = path2.basename(dir);
+      existingContent = `# ${folderName}
 `;
     }
     if (options.header) {

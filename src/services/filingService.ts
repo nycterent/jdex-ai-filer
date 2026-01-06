@@ -43,8 +43,10 @@ export class FilingService {
 			existingContent = await this.app.vault.read(file);
 		} else {
 			// File doesn't exist (folder-based JDex) - create it
-			const fileName = targetPath.split('/').pop()?.replace('.md', '') || 'Notes';
-			existingContent = `# ${fileName}\n`;
+			// Use folder name as header (the JDex ID name)
+			const pathParts = targetPath.split('/');
+			const folderName = pathParts[pathParts.length - 2] || 'Notes';
+			existingContent = `# ${folderName}\n`;
 			await this.app.vault.create(targetPath, existingContent);
 			file = this.app.vault.getAbstractFileByPath(targetPath);
 			if (!(file instanceof TFile)) {
@@ -87,9 +89,9 @@ export class FilingService {
 			if (!fs.existsSync(dir)) {
 				throw new Error(`Folder not found: ${dir}`);
 			}
-			// Create new file with header matching the JDex item name
-			const fileName = path.basename(targetPath, '.md');
-			existingContent = `# ${fileName}\n`;
+			// Create new file with header from folder name (the JDex ID name)
+			const folderName = path.basename(dir);
+			existingContent = `# ${folderName}\n`;
 		}
 
 		if (options.header) {
