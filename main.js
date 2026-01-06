@@ -400,6 +400,12 @@ var JDexParser = class {
           if (item) {
             items.push(item);
           }
+        } else if (entry.isDirectory() && !entry.name.startsWith(".")) {
+          const idFolderPath = path.join(folderPath, entry.name);
+          const item = this.parseExternalIdFolder(idFolderPath, entry.name, categoryId);
+          if (item) {
+            items.push(item);
+          }
         }
       }
       items.sort((a, b) => a.id.localeCompare(b.id));
@@ -432,6 +438,30 @@ var JDexParser = class {
       id: fullId,
       name: idName,
       path: filePath,
+      isHeader: idNumber.endsWith("0") && idNum >= 10,
+      isReserved: idNum < 10
+    };
+  }
+  /**
+   * Parse an external ID folder (XX.XX pattern) - for folder-based JDex structures
+   */
+  parseExternalIdFolder(folderPath, folderName, categoryId) {
+    const match = folderName.match(ID_PATTERN);
+    if (!match) return null;
+    const idCategory = match[1];
+    const idNumber = match[2];
+    const idName = match[3].trim();
+    if (idCategory !== categoryId) {
+      return null;
+    }
+    const fullId = `${idCategory}.${idNumber}`;
+    const idNum = parseInt(idNumber);
+    const targetFile = path.join(folderPath, `${folderName}.md`);
+    return {
+      id: fullId,
+      name: idName,
+      path: targetFile,
+      folderPath,
       isHeader: idNumber.endsWith("0") && idNum >= 10,
       isReserved: idNum < 10
     };
@@ -482,6 +512,11 @@ var JDexParser = class {
         if (item) {
           items.push(item);
         }
+      } else if (child instanceof import_obsidian3.TFolder) {
+        const item = this.parseIdFolder(child, categoryId);
+        if (item) {
+          items.push(item);
+        }
       }
     }
     items.sort((a, b) => a.id.localeCompare(b.id));
@@ -490,6 +525,30 @@ var JDexParser = class {
       name: categoryName,
       path: folder.path,
       items
+    };
+  }
+  /**
+   * Parse an ID folder (XX.XX pattern) - for folder-based JDex structures
+   */
+  parseIdFolder(folder, categoryId) {
+    const match = folder.name.match(ID_PATTERN);
+    if (!match) return null;
+    const idCategory = match[1];
+    const idNumber = match[2];
+    const idName = match[3].trim();
+    if (idCategory !== categoryId) {
+      return null;
+    }
+    const fullId = `${idCategory}.${idNumber}`;
+    const idNum = parseInt(idNumber);
+    const targetFile = `${folder.path}/${folder.name}.md`;
+    return {
+      id: fullId,
+      name: idName,
+      path: targetFile,
+      folderPath: folder.path,
+      isHeader: idNumber.endsWith("0") && idNum >= 10,
+      isReserved: idNum < 10
     };
   }
   /**
@@ -1201,6 +1260,7 @@ var InputModal = class extends import_obsidian9.Modal {
 // src/services/filingService.ts
 var import_obsidian10 = require("obsidian");
 var fs2 = __toESM(require("fs"));
+var path2 = __toESM(require("path"));
 var FilingService = class {
   constructor(app) {
     this.app = app;
@@ -1219,12 +1279,22 @@ var FilingService = class {
    * Append content to a vault file
    */
   async fileToVault(content, targetPath, options) {
-    const file = this.app.vault.getAbstractFileByPath(targetPath);
-    if (!(file instanceof import_obsidian10.TFile)) {
-      throw new Error(`File not found: ${targetPath}`);
+    var _a;
+    let file = this.app.vault.getAbstractFileByPath(targetPath);
+    let existingContent = "";
+    if (file instanceof import_obsidian10.TFile) {
+      existingContent = await this.app.vault.read(file);
+    } else {
+      const fileName = ((_a = targetPath.split("/").pop()) == null ? void 0 : _a.replace(".md", "")) || "Notes";
+      existingContent = `# ${fileName}
+`;
+      await this.app.vault.create(targetPath, existingContent);
+      file = this.app.vault.getAbstractFileByPath(targetPath);
+      if (!(file instanceof import_obsidian10.TFile)) {
+        throw new Error(`Failed to create file: ${targetPath}`);
+      }
     }
     const appendContent = this.formatContent(content, options);
-    let existingContent = await this.app.vault.read(file);
     if (options.header) {
       existingContent = this.appendUnderHeader(
         existingContent,
@@ -1240,11 +1310,19 @@ var FilingService = class {
    * Append content to an external file (outside vault)
    */
   async fileToExternal(content, targetPath, options) {
-    if (!fs2.existsSync(targetPath)) {
-      throw new Error(`File not found: ${targetPath}`);
-    }
     const appendContent = this.formatContent(content, options);
-    let existingContent = fs2.readFileSync(targetPath, "utf-8");
+    let existingContent = "";
+    if (fs2.existsSync(targetPath)) {
+      existingContent = fs2.readFileSync(targetPath, "utf-8");
+    } else {
+      const dir = path2.dirname(targetPath);
+      if (!fs2.existsSync(dir)) {
+        throw new Error(`Folder not found: ${dir}`);
+      }
+      const fileName = path2.basename(targetPath, ".md");
+      existingContent = `# ${fileName}
+`;
+    }
     if (options.header) {
       existingContent = this.appendUnderHeader(
         existingContent,

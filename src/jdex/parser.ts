@@ -201,9 +201,18 @@ export class JDexParser {
 			const entries = fs.readdirSync(folderPath, { withFileTypes: true });
 
 			for (const entry of entries) {
+				// Handle ID as .md file
 				if (entry.isFile() && entry.name.endsWith('.md')) {
 					const filePath = path.join(folderPath, entry.name);
 					const item = this.parseExternalIdFile(filePath, entry.name, categoryId);
+					if (item) {
+						items.push(item);
+					}
+				}
+				// Handle ID as folder (folder-based JDex structure)
+				else if (entry.isDirectory() && !entry.name.startsWith('.')) {
+					const idFolderPath = path.join(folderPath, entry.name);
+					const item = this.parseExternalIdFolder(idFolderPath, entry.name, categoryId);
 					if (item) {
 						items.push(item);
 					}
@@ -249,6 +258,38 @@ export class JDexParser {
 			id: fullId,
 			name: idName,
 			path: filePath,
+			isHeader: idNumber.endsWith('0') && idNum >= 10,
+			isReserved: idNum < 10
+		};
+	}
+
+	/**
+	 * Parse an external ID folder (XX.XX pattern) - for folder-based JDex structures
+	 */
+	private parseExternalIdFolder(folderPath: string, folderName: string, categoryId: string): JDexItem | null {
+		const match = folderName.match(ID_PATTERN);
+		if (!match) return null;
+
+		const idCategory = match[1];
+		const idNumber = match[2];
+		const idName = match[3].trim();
+
+		// Verify this ID belongs to the category
+		if (idCategory !== categoryId) {
+			return null;
+		}
+
+		const fullId = `${idCategory}.${idNumber}`;
+		const idNum = parseInt(idNumber);
+
+		// Target file inside folder: same name as folder + .md
+		const targetFile = path.join(folderPath, `${folderName}.md`);
+
+		return {
+			id: fullId,
+			name: idName,
+			path: targetFile,
+			folderPath: folderPath,
 			isHeader: idNumber.endsWith('0') && idNum >= 10,
 			isReserved: idNum < 10
 		};
@@ -308,10 +349,18 @@ export class JDexParser {
 
 		const items: JDexItem[] = [];
 
-		// Find ID files within this category
+		// Find ID files and folders within this category
 		for (const child of folder.children) {
+			// Handle ID as .md file
 			if (child instanceof TFile && child.extension === 'md') {
 				const item = this.parseIdFile(child, categoryId);
+				if (item) {
+					items.push(item);
+				}
+			}
+			// Handle ID as folder (folder-based JDex structure)
+			else if (child instanceof TFolder) {
+				const item = this.parseIdFolder(child, categoryId);
 				if (item) {
 					items.push(item);
 				}
@@ -326,6 +375,38 @@ export class JDexParser {
 			name: categoryName,
 			path: folder.path,
 			items
+		};
+	}
+
+	/**
+	 * Parse an ID folder (XX.XX pattern) - for folder-based JDex structures
+	 */
+	private parseIdFolder(folder: TFolder, categoryId: string): JDexItem | null {
+		const match = folder.name.match(ID_PATTERN);
+		if (!match) return null;
+
+		const idCategory = match[1];
+		const idNumber = match[2];
+		const idName = match[3].trim();
+
+		// Verify this ID belongs to the category
+		if (idCategory !== categoryId) {
+			return null;
+		}
+
+		const fullId = `${idCategory}.${idNumber}`;
+		const idNum = parseInt(idNumber);
+
+		// Target file inside folder: same name as folder + .md
+		const targetFile = `${folder.path}/${folder.name}.md`;
+
+		return {
+			id: fullId,
+			name: idName,
+			path: targetFile,
+			folderPath: folder.path,
+			isHeader: idNumber.endsWith('0') && idNum >= 10,
+			isReserved: idNum < 10
 		};
 	}
 

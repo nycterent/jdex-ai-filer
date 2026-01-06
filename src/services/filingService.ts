@@ -1,6 +1,7 @@
 import { App, TFile, moment } from 'obsidian';
 import { FilingSuggestion, FileOptions } from '../types';
 import * as fs from 'fs';
+import * as path from 'path';
 import { isAbsolutePath } from '../utils/folderPicker';
 
 export class FilingService {
@@ -34,16 +35,24 @@ export class FilingService {
 		targetPath: string,
 		options: FileOptions
 	): Promise<void> {
-		const file = this.app.vault.getAbstractFileByPath(targetPath);
+		let file = this.app.vault.getAbstractFileByPath(targetPath);
+		let existingContent = '';
 
-		if (!(file instanceof TFile)) {
-			throw new Error(`File not found: ${targetPath}`);
+		if (file instanceof TFile) {
+			// File exists, read its content
+			existingContent = await this.app.vault.read(file);
+		} else {
+			// File doesn't exist (folder-based JDex) - create it
+			const fileName = targetPath.split('/').pop()?.replace('.md', '') || 'Notes';
+			existingContent = `# ${fileName}\n`;
+			await this.app.vault.create(targetPath, existingContent);
+			file = this.app.vault.getAbstractFileByPath(targetPath);
+			if (!(file instanceof TFile)) {
+				throw new Error(`Failed to create file: ${targetPath}`);
+			}
 		}
 
 		const appendContent = this.formatContent(content, options);
-
-		// Read existing file content
-		let existingContent = await this.app.vault.read(file);
 
 		if (options.header) {
 			existingContent = this.appendUnderHeader(
@@ -66,14 +75,22 @@ export class FilingService {
 		targetPath: string,
 		options: FileOptions
 	): Promise<void> {
-		if (!fs.existsSync(targetPath)) {
-			throw new Error(`File not found: ${targetPath}`);
-		}
-
 		const appendContent = this.formatContent(content, options);
+		let existingContent = '';
 
-		// Read existing file content
-		let existingContent = fs.readFileSync(targetPath, 'utf-8');
+		if (fs.existsSync(targetPath)) {
+			// File exists, read its content
+			existingContent = fs.readFileSync(targetPath, 'utf-8');
+		} else {
+			// File doesn't exist (folder-based JDex) - create it
+			const dir = path.dirname(targetPath);
+			if (!fs.existsSync(dir)) {
+				throw new Error(`Folder not found: ${dir}`);
+			}
+			// Create new file with header matching the JDex item name
+			const fileName = path.basename(targetPath, '.md');
+			existingContent = `# ${fileName}\n`;
+		}
 
 		if (options.header) {
 			existingContent = this.appendUnderHeader(

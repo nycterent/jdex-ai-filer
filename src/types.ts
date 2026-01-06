@@ -27,7 +27,8 @@ export interface JDexItem {
 	id: string;           // "14.11"
 	name: string;         // "My computers & servers"
 	description?: string; // From definition file
-	path: string;         // Full vault path
+	path: string;         // Full path to target file (may not exist yet)
+	folderPath?: string;  // Parent folder path (for folder-based IDs)
 	isHeader: boolean;    // .X0 items are section headers
 	isReserved: boolean;  // .00-.09 are reserved
 }
