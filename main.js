@@ -129,6 +129,7 @@ var JDexAIFilerSettingTab = class extends import_obsidian2.PluginSettingTab {
     new import_obsidian2.Setting(containerEl).setName("JDex root folder").setDesc("Folder containing your JDex structure (can be anywhere on your system)").addText((text) => {
       text.setValue(this.plugin.settings.jdexRootFolder || "").setPlaceholder("/path/to/jdex-folder").onChange(async (value) => {
         this.plugin.settings.jdexRootFolder = value;
+        this.plugin.jdexParser.clearCache();
         await this.plugin.saveSettings();
       });
       text.inputEl.style.width = "300px";
@@ -136,6 +137,7 @@ var JDexAIFilerSettingTab = class extends import_obsidian2.PluginSettingTab {
       const folder = await pickFolder();
       if (folder) {
         this.plugin.settings.jdexRootFolder = folder;
+        this.plugin.jdexParser.clearCache();
         await this.plugin.saveSettings();
         this.display();
       } else {
@@ -1455,8 +1457,10 @@ var JDexAIFilerPlugin = class extends import_obsidian11.Plugin {
         new import_obsidian11.Notice("No filing suggestions found. Content may not match any JDex location.");
         return;
       }
+      console.log("JDex AI Filer - AI suggestions:", response.suggestions.map((s) => s.jdexId));
       for (const suggestion of response.suggestions) {
         const item = await this.jdexParser.findById(suggestion.jdexId, this.settings.jdexRootFolder);
+        console.log(`JDex AI Filer - Looking for ${suggestion.jdexId}:`, item ? "FOUND at " + item.path : "NOT FOUND");
         if (item) {
           suggestion.targetPath = item.path;
           suggestion.jdexName = item.name;
@@ -1464,7 +1468,11 @@ var JDexAIFilerPlugin = class extends import_obsidian11.Plugin {
       }
       const validSuggestions = response.suggestions.filter((s) => s.targetPath);
       if (validSuggestions.length === 0) {
-        new import_obsidian11.Notice("Suggested locations not found in vault");
+        const suggestedIds = response.suggestions.map((s) => s.jdexId).join(", ");
+        new import_obsidian11.Notice(`AI suggested: ${suggestedIds}
+But these IDs were not found in your JDex folder.`, 8e3);
+        console.error("JDex AI Filer - Root folder:", this.settings.jdexRootFolder);
+        console.error("JDex AI Filer - Suggested IDs not found:", suggestedIds);
         return;
       }
       const defaultOptions = {

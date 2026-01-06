@@ -181,9 +181,13 @@ export default class JDexAIFilerPlugin extends Plugin {
 				return;
 			}
 
+			// Debug: Log AI suggestions
+			console.log('JDex AI Filer - AI suggestions:', response.suggestions.map(s => s.jdexId));
+
 			// 4. Populate target paths from index
 			for (const suggestion of response.suggestions) {
 				const item = await this.jdexParser.findById(suggestion.jdexId, this.settings.jdexRootFolder);
+				console.log(`JDex AI Filer - Looking for ${suggestion.jdexId}:`, item ? 'FOUND at ' + item.path : 'NOT FOUND');
 				if (item) {
 					suggestion.targetPath = item.path;
 					suggestion.jdexName = item.name;
@@ -194,7 +198,10 @@ export default class JDexAIFilerPlugin extends Plugin {
 			const validSuggestions = response.suggestions.filter(s => s.targetPath);
 
 			if (validSuggestions.length === 0) {
-				new Notice('Suggested locations not found in vault');
+				const suggestedIds = response.suggestions.map(s => s.jdexId).join(', ');
+				new Notice(`AI suggested: ${suggestedIds}\nBut these IDs were not found in your JDex folder.`, 8000);
+				console.error('JDex AI Filer - Root folder:', this.settings.jdexRootFolder);
+				console.error('JDex AI Filer - Suggested IDs not found:', suggestedIds);
 				return;
 			}
 

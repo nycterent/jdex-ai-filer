@@ -54,6 +54,7 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 					.setPlaceholder('/path/to/jdex-folder')
 					.onChange(async (value) => {
 						this.plugin.settings.jdexRootFolder = value;
+						this.plugin.jdexParser.clearCache();
 						await this.plugin.saveSettings();
 					});
 				text.inputEl.style.width = '300px';
@@ -64,6 +65,7 @@ export class JDexAIFilerSettingTab extends PluginSettingTab {
 					const folder = await pickFolder();
 					if (folder) {
 						this.plugin.settings.jdexRootFolder = folder;
+						this.plugin.jdexParser.clearCache();
 						await this.plugin.saveSettings();
 						this.display();
 					} else {
